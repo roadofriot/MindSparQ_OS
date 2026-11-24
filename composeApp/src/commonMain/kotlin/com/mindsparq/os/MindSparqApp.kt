@@ -167,6 +167,19 @@ fun MindSparqApp(isDesktop: Boolean) {
                                     .onFailure { onError(it.message ?: "Authentication failed") }
                             }
                         },
+                        onSignUp = { fullName, email, password, onInfo, onError ->
+                            scope.launch {
+                                authRepo.signUp(fullName, email, password)
+                                    .onSuccess { createdSession ->
+                                        if (createdSession != null) {
+                                            session = createdSession
+                                        } else {
+                                            onInfo("Account created! Check your email to confirm, then sign in.")
+                                        }
+                                    }
+                                    .onFailure { onError(it.message ?: "Sign-up failed") }
+                            }
+                        },
                         onGoogleSignIn = { onError ->
                             scope.launch {
                                 authRepo.signInWithGoogle()
@@ -312,12 +325,16 @@ private fun SignInScreen(
     onToggleTheme: () -> Unit,
     onToggleLanguage: () -> Unit,
     onSignIn: (email: String, password: String, onError: (String) -> Unit) -> Unit,
+    onSignUp: (fullName: String, email: String, password: String, onInfo: (String) -> Unit, onError: (String) -> Unit) -> Unit,
     onGoogleSignIn: (onError: (String) -> Unit) -> Unit,
 ) {
     val colors = LocalMindSparqColors.current
+    var isSignUpMode by remember { mutableStateOf(false) }
+    var fullName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var errorMsg by remember { mutableStateOf<String?>(null) }
+    var infoMsg by remember { mutableStateOf<String?>(null) }
 
     Box(modifier = Modifier.fillMaxSize().padding(24.dp)) {
         Row(
@@ -359,16 +376,25 @@ private fun SignInScreen(
                         color = colors.textPrimary,
                     )
                 }
+                if (isSignUpMode) {
+                    OutlinedTextField(
+                        value = fullName,
+                        onValueChange = { fullName = it; errorMsg = null; infoMsg = null },
+                        label = { Text("Full Name *") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
                 OutlinedTextField(
                     value = email,
-                    onValueChange = { email = it; errorMsg = null },
+                    onValueChange = { email = it; errorMsg = null; infoMsg = null },
                     label = { Text(strings.emailLabel) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = password,
-                    onValueChange = { password = it; errorMsg = null },
+                    onValueChange = { password = it; errorMsg = null; infoMsg = null },
                     label = { Text(strings.passwordLabel) },
                     visualTransformation = PasswordVisualTransformation(),
                     singleLine = true,
@@ -381,13 +407,38 @@ private fun SignInScreen(
                         color = colors.statusDanger,
                     )
                 }
+                if (infoMsg != null) {
+                    Text(
+                        text = infoMsg!!,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = colors.statusSuccess,
+                    )
+                }
                 Button(
-                    onClick = { onSignIn(email, password) { errorMsg = it } },
-                    enabled = email.isNotBlank() && password.isNotBlank(),
+                    onClick = {
+                        if (isSignUpMode) {
+                            onSignUp(fullName, email, password, { infoMsg = it }) { errorMsg = it }
+                        } else {
+                            onSignIn(email, password) { errorMsg = it }
+                        }
+                    },
+                    enabled = email.isNotBlank() && password.isNotBlank() && (!isSignUpMode || fullName.isNotBlank()),
                     shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.fillMaxWidth().height(44.dp),
                 ) {
-                    Text(strings.signInAction)
+                    Text(if (isSignUpMode) "Create Account" else strings.signInAction)
+                }
+                TextButton(
+                    onClick = {
+                        isSignUpMode = !isSignUpMode
+                        errorMsg = null
+                        infoMsg = null
+                    },
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                ) {
+                    Text(
+                        if (isSignUpMode) "Already have an account? Sign In" else "New to MindSparQ OS? Create Account",
+                    )
                 }
                 HorizontalDivider(thickness = 1.dp, color = colors.borderHairline)
                 OutlinedButton(

@@ -8,6 +8,8 @@ import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Columns
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 enum class RoleCode(val dbCode: String, val displayName: String) {
     SUPER_ADMIN("super_admin", "Super Admin"),
@@ -110,6 +112,21 @@ class AuthRepository {
             this.password = password
         }
         loadCurrentSession() ?: error("Authenticated user profile could not be loaded.")
+    }
+
+    suspend fun signUp(fullName: String, email: String, password: String): Result<AuthenticatedSession?> = runCatching {
+        val client = SupabaseConfig.client
+            ?: error("Supabase is not configured.")
+        require(fullName.isNotBlank()) { "Full name is required." }
+        require(password.length >= 6) { "Password must be at least 6 characters." }
+        client.auth.signUpWith(Email) {
+            this.email = email.trim()
+            this.password = password
+            this.data = buildJsonObject {
+                put("full_name", fullName.trim())
+            }
+        }
+        loadCurrentSession()
     }
 
     suspend fun signInWithGoogle(): Result<Unit> = runCatching {
