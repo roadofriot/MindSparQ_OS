@@ -1,0 +1,13 @@
+# Gradle & IDE
+.gradle/
+build/
+*/build/
+local.properties
+*.iml
+.idea/
+
+# Generated secrets / build-time config
+composeApp/src/commonMain/kotlin/com/mindsparq/os/core/network/GeneratedSupabaseConfig.kt
+.env
+*.jks
+*.keystore
