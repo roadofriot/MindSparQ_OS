@@ -13,6 +13,11 @@ create policy super_admin_allowlist_select on public.super_admin_allowlist
 create policy super_admin_allowlist_write on public.super_admin_allowlist
   for all using (public.auth_has_role(array['super_admin']));
 
+insert into public.super_admin_allowlist (email, note) values
+  ('merokhoj@gmail.com', 'Primary Super Admin'),
+  ('samay.unik@gmail.com', 'Secondary Super Admin')
+on conflict (email) do nothing;
+
 -- 2. Trigger function: auto-create complete profile on auth.users insert (Gmail OAuth / Email)
 create or replace function public.handle_new_user()
 returns trigger
