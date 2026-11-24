@@ -2,11 +2,13 @@ package com.mindsparq.os.core.network
 
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
+import io.github.jan.supabase.auth.AuthConfig
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.storage.Storage
 
 expect fun readPlatformEnv(name: String): String?
+expect fun configurePlatformAuth(config: AuthConfig)
 
 /**
  * Resolves Supabase connection in priority order:
@@ -47,7 +49,9 @@ object SupabaseConfig {
             val pair = u to k
             if (cachedClient == null || cachedKey != pair) {
                 cachedClient = createSupabaseClient(supabaseUrl = u, supabaseKey = k) {
-                    install(Auth)
+                    install(Auth) {
+                        configurePlatformAuth(this)
+                    }
                     install(Postgrest)
                     install(Storage)
                 }

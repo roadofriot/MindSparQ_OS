@@ -87,6 +87,8 @@ import com.mindsparq.os.features.reports.ReportsScreen
 import com.mindsparq.os.features.schools.SchoolsScreen
 import com.mindsparq.os.features.settings.SettingsScreen
 import com.mindsparq.os.features.users.UsersAndRolesScreen
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.launch
@@ -106,10 +108,24 @@ fun MindSparqApp(isDesktop: Boolean) {
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(configRevision) {
-        if (SupabaseConfig.isConfigured) {
-            session = runCatching { authRepo.loadCurrentSession() }.getOrNull()
+        val client = SupabaseConfig.client
+        if (client != null) {
+            client.auth.sessionStatus.collect { status ->
+                when (status) {
+                    is SessionStatus.Authenticated -> {
+                        session = runCatching { authRepo.loadCurrentSession() }.getOrNull()
+                        authChecked = true
+                    }
+                    is SessionStatus.NotAuthenticated -> {
+                        session = null
+                        authChecked = true
+                    }
+                    else -> Unit
+                }
+            }
+        } else {
+            authChecked = true
         }
-        authChecked = true
     }
 
     MindSparqTheme(themeMode = themeMode) {
