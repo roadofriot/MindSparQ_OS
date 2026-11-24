@@ -1,5 +1,6 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -20,13 +21,18 @@ kotlin {
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_17)
         }
+        mainRun {
+            mainClass.set("com.mindsparq.os.MainKt")
+        }
     }
 
     sourceSets {
         val desktopMain by getting
 
-        commonMain.dependencies {
-            implementation(compose.runtime)
+        commonMain {
+            kotlin.srcDir(layout.buildDirectory.dir("generated/supabase/kotlin"))
+            dependencies {
+                implementation(compose.runtime)
             implementation(compose.foundation)
             implementation(compose.material3)
             implementation(compose.ui)
@@ -40,6 +46,7 @@ kotlin {
             implementation(libs.supabase.auth)
             implementation(libs.supabase.postgrest)
             implementation(libs.supabase.storage)
+            }
         }
 
         androidMain.dependencies {
@@ -102,3 +109,42 @@ compose.desktop {
         }
     }
 }
+
+val generateSupabaseConfig by tasks.registering {
+    val envFile = rootProject.file(".env")
+    val outDir = layout.buildDirectory.dir("generated/supabase/kotlin")
+    val props = Properties().apply {
+        if (envFile.exists()) {
+            envFile.inputStream().use { load(it) }
+        }
+    }
+    val resolvedUrl = (findProperty("MINDSPARQ_SUPABASE_URL") as? String)
+        ?: props.getProperty("MINDSPARQ_SUPABASE_URL")
+        ?: System.getenv("MINDSPARQ_SUPABASE_URL")
+        ?: ""
+    val resolvedAnonKey = (findProperty("MINDSPARQ_SUPABASE_ANON_KEY") as? String)
+        ?: props.getProperty("MINDSPARQ_SUPABASE_ANON_KEY")
+        ?: System.getenv("MINDSPARQ_SUPABASE_ANON_KEY")
+        ?: ""
+
+    outputs.dir(outDir)
+    doLast {
+        val target = outDir.get().asFile.resolve("com/mindsparq/os/core/network/GeneratedSupabaseConfig.kt")
+        target.parentFile.mkdirs()
+        target.writeText(
+            """
+            package com.mindsparq.os.core.network
+
+            internal object GeneratedSupabaseConfig {
+                const val URL: String = "${resolvedUrl.replace("\"", "\\\"")}"
+                const val ANON_KEY: String = "${resolvedAnonKey.replace("\"", "\\\"")}"
+            }
+            """.trimIndent() + "\n"
+        )
+    }
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask<*>>().configureEach {
+    dependsOn(generateSupabaseConfig)
+}
+

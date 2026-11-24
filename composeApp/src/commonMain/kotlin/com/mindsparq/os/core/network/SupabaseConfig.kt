@@ -11,7 +11,7 @@ expect fun readPlatformEnv(name: String): String?
 /**
  * Resolves Supabase connection in priority order:
  * 1. In-app runtime override (for self-hosted / open-source users)
- * 2. Build-time injected config (from CI / local.properties / .env for Play Store & desktop releases)
+ * 2. Build-time generated config (from .env / CI secrets for Play Store & desktop releases)
  * 3. Platform environment variables
  */
 object SupabaseConfig {
@@ -22,12 +22,12 @@ object SupabaseConfig {
 
     val url: String?
         get() = runtimeUrl?.takeIf { it.isNotBlank() }
-            ?: BuildInjectedSupabase.url.takeIf { it.isNotBlank() }
+            ?: GeneratedSupabaseConfig.URL.takeIf { it.isNotBlank() }
             ?: readPlatformEnv("MINDSPARQ_SUPABASE_URL")?.takeIf { it.isNotBlank() }
 
     val anonKey: String?
         get() = runtimeAnonKey?.takeIf { it.isNotBlank() }
-            ?: BuildInjectedSupabase.anonKey.takeIf { it.isNotBlank() }
+            ?: GeneratedSupabaseConfig.ANON_KEY.takeIf { it.isNotBlank() }
             ?: readPlatformEnv("MINDSPARQ_SUPABASE_ANON_KEY")?.takeIf { it.isNotBlank() }
 
     val isConfigured: Boolean

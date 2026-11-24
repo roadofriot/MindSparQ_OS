@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.AdminPanelSettings
 import androidx.compose.material.icons.outlined.Assessment
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.DarkMode
@@ -33,6 +34,7 @@ import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
@@ -41,6 +43,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -83,6 +86,7 @@ import com.mindsparq.os.features.inventory.InventoryScreen
 import com.mindsparq.os.features.reports.ReportsScreen
 import com.mindsparq.os.features.schools.SchoolsScreen
 import com.mindsparq.os.features.settings.SettingsScreen
+import com.mindsparq.os.features.users.UsersAndRolesScreen
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.launch
@@ -145,6 +149,31 @@ fun MindSparqApp(isDesktop: Boolean) {
                                 authRepo.signIn(email, password)
                                     .onSuccess { session = it }
                                     .onFailure { onError(it.message ?: "Authentication failed") }
+                            }
+                        },
+                        onGoogleSignIn = { onError ->
+                            scope.launch {
+                                authRepo.signInWithGoogle()
+                                    .onSuccess {
+                                        session = runCatching { authRepo.loadCurrentSession() }.getOrNull()
+                                    }
+                                    .onFailure { onError(it.message ?: "Google Sign-In failed") }
+                            }
+                        },
+                    )
+                }
+                session!!.roles.isEmpty() -> {
+                    PendingRoleApprovalScreen(
+                        session = session!!,
+                        onRefresh = {
+                            scope.launch {
+                                session = runCatching { authRepo.loadCurrentSession() }.getOrNull()
+                            }
+                        },
+                        onSignOut = {
+                            scope.launch {
+                                authRepo.signOut()
+                                session = null
                             }
                         },
                     )
@@ -267,6 +296,7 @@ private fun SignInScreen(
     onToggleTheme: () -> Unit,
     onToggleLanguage: () -> Unit,
     onSignIn: (email: String, password: String, onError: (String) -> Unit) -> Unit,
+    onGoogleSignIn: (onError: (String) -> Unit) -> Unit,
 ) {
     val colors = LocalMindSparqColors.current
     var email by remember { mutableStateOf("") }
@@ -342,6 +372,58 @@ private fun SignInScreen(
                     modifier = Modifier.fillMaxWidth().height(44.dp),
                 ) {
                     Text(strings.signInAction)
+                }
+                HorizontalDivider(thickness = 1.dp, color = colors.borderHairline)
+                OutlinedButton(
+                    onClick = { onGoogleSignIn { errorMsg = it } },
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth().height(44.dp),
+                ) {
+                    Text("Continue with Google (Gmail)")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PendingRoleApprovalScreen(
+    session: AuthenticatedSession,
+    onRefresh: () -> Unit,
+    onSignOut: () -> Unit,
+) {
+    val colors = LocalMindSparqColors.current
+    Box(modifier = Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+        Surface(
+            color = colors.bgSurface,
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(1.dp, colors.borderHairline),
+            modifier = Modifier.widthIn(max = 440.dp).fillMaxWidth(),
+        ) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.padding(28.dp),
+            ) {
+                Text("Profile Created — Awaiting Role", style = MaterialTheme.typography.headlineMedium, color = colors.textPrimary)
+                Text(
+                    text = "Signed in as ${session.fullName} (${session.email}). A Super Admin must assign your role (Admin, Management, or Instructor) before you can access modules.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.textSecondary,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MindSparqIconButton(
+                        icon = Icons.Outlined.Refresh,
+                        tooltip = "Check Assigned Role",
+                        outlined = true,
+                        onClick = onRefresh,
+                    )
+                    MindSparqIconButton(
+                        icon = Icons.AutoMirrored.Outlined.Logout,
+                        tooltip = "Sign Out",
+                        outlined = true,
+                        tint = colors.statusDanger,
+                        onClick = onSignOut,
+                    )
                 }
             }
         }
@@ -752,6 +834,7 @@ private fun DestinationWorkspace(
         AppDestination.INVENTORY -> InventoryScreen()
         AppDestination.FIELD_OPS -> FieldOpsScreen(session = session)
         AppDestination.REPORTS -> ReportsScreen()
+        AppDestination.USERS -> UsersAndRolesScreen()
         AppDestination.SETTINGS -> SettingsScreen(
             session = session,
             themeMode = themeMode,
@@ -772,6 +855,7 @@ private fun destinationIcon(dest: AppDestination): ImageVector = when (dest) {
     AppDestination.INVENTORY -> Icons.Outlined.Inventory2
     AppDestination.FIELD_OPS -> Icons.Outlined.LocationOn
     AppDestination.REPORTS -> Icons.Outlined.Assessment
+    AppDestination.USERS -> Icons.Outlined.AdminPanelSettings
     AppDestination.SETTINGS -> Icons.Outlined.Settings
 }
 
@@ -783,5 +867,6 @@ private fun destinationLabel(dest: AppDestination, strings: AppStrings): String 
     AppDestination.INVENTORY -> strings.inventory
     AppDestination.FIELD_OPS -> strings.fieldOps
     AppDestination.REPORTS -> strings.reports
+    AppDestination.USERS -> "Users & Roles"
     AppDestination.SETTINGS -> strings.settings
 }

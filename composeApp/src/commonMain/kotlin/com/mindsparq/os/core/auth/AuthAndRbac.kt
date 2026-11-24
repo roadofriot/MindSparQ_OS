@@ -2,19 +2,21 @@ package com.mindsparq.os.core.auth
 
 import com.mindsparq.os.core.network.SupabaseConfig
 import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.providers.Google
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.query.Columns
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-enum class RoleCode(val dbCode: String) {
-    SUPER_ADMIN("super_admin"),
-    ADMIN("admin"),
-    MANAGEMENT("management"),
-    FINANCE("finance"),
-    INVENTORY("inventory"),
-    TEACHER("teacher"),
-    AUDITOR("auditor");
+enum class RoleCode(val dbCode: String, val displayName: String) {
+    SUPER_ADMIN("super_admin", "Super Admin"),
+    ADMIN("admin", "Admin"),
+    MANAGEMENT("management", "Management"),
+    FINANCE("finance", "Finance"),
+    INVENTORY("inventory", "Inventory"),
+    TEACHER("teacher", "Instructor / Teacher"),
+    AUDITOR("auditor", "Auditor");
 
     companion object {
         fun fromDb(code: String): RoleCode? = entries.firstOrNull { it.dbCode == code }
@@ -29,13 +31,16 @@ enum class AppDestination {
     INVENTORY,
     FIELD_OPS,
     REPORTS,
+    USERS,
     SETTINGS,
 }
 
 fun allowedDestinations(roles: Set<RoleCode>, isDesktop: Boolean): List<AppDestination> {
     if (roles.isEmpty()) return emptyList()
-    val full = if (RoleCode.SUPER_ADMIN in roles || RoleCode.ADMIN in roles) {
+    val full = if (RoleCode.SUPER_ADMIN in roles) {
         AppDestination.entries
+    } else if (RoleCode.ADMIN in roles) {
+        AppDestination.entries.filter { it != AppDestination.USERS }
     } else {
         buildList {
             add(AppDestination.DASHBOARD)
@@ -54,7 +59,6 @@ fun allowedDestinations(roles: Set<RoleCode>, isDesktop: Boolean): List<AppDesti
             add(AppDestination.SETTINGS)
         }
     }
-    // Mobile (Android) focuses on field/teacher/management workflows without cramming heavy desktop finance/reports
     return if (isDesktop) {
         full
     } else {
@@ -63,6 +67,7 @@ fun allowedDestinations(roles: Set<RoleCode>, isDesktop: Boolean): List<AppDesti
                 AppDestination.DASHBOARD,
                 AppDestination.SCHOOLS,
                 AppDestination.FIELD_OPS,
+                AppDestination.USERS,
                 AppDestination.SETTINGS,
             )
         }
@@ -74,7 +79,9 @@ data class UserProfileDto(
     val id: String,
     @SerialName("full_name") val fullName: String,
     val email: String? = null,
+    @SerialName("avatar_path") val avatarPath: String? = null,
     @SerialName("preferred_language") val preferredLanguage: String = "en",
+    val status: String = "active",
 )
 
 @Serializable
@@ -90,18 +97,25 @@ data class AuthenticatedSession(
     val userId: String,
     val fullName: String,
     val email: String,
+    val avatarUrl: String?,
     val roles: Set<RoleCode>,
 )
 
 class AuthRepository {
     suspend fun signIn(email: String, password: String): Result<AuthenticatedSession> = runCatching {
         val client = SupabaseConfig.client
-            ?: error("Supabase environment variables are not configured.")
+            ?: error("Supabase is not configured.")
         client.auth.signInWith(Email) {
             this.email = email.trim()
             this.password = password
         }
         loadCurrentSession() ?: error("Authenticated user profile could not be loaded.")
+    }
+
+    suspend fun signInWithGoogle(): Result<Unit> = runCatching {
+        val client = SupabaseConfig.client
+            ?: error("Supabase is not configured.")
+        client.auth.signInWith(Google)
     }
 
     suspend fun loadCurrentSession(): AuthenticatedSession? {
@@ -111,7 +125,7 @@ class AuthRepository {
             .select { filter { eq("id", user.id) } }
             .decodeSingleOrNull<UserProfileDto>()
         val roleRows = client.from("user_roles")
-            .select(io.github.jan.supabase.postgrest.query.Columns.raw("role_id, roles(code)")) {
+            .select(Columns.raw("role_id, roles(code)")) {
                 filter { eq("user_id", user.id) }
             }
             .decodeList<UserRoleRow>()
@@ -121,6 +135,7 @@ class AuthRepository {
             userId = user.id,
             fullName = profile?.fullName ?: (user.email ?: "User"),
             email = profile?.email ?: (user.email ?: ""),
+            avatarUrl = profile?.avatarPath,
             roles = roles,
         )
     }
