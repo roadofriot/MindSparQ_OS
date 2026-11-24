@@ -14,9 +14,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.EventNote
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.EventNote
-import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.AlertDialog
@@ -107,13 +107,13 @@ fun AcademicScreen() {
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 MindSparqIconButton(
-                    icon = Icons.Outlined.MenuBook,
+                    icon = Icons.AutoMirrored.Outlined.MenuBook,
                     tooltip = "Course Catalogue",
                     selected = activeTab == AcademicTab.COURSES,
                     onClick = { activeTab = AcademicTab.COURSES },
                 )
                 MindSparqIconButton(
-                    icon = Icons.Outlined.EventNote,
+                    icon = Icons.AutoMirrored.Outlined.EventNote,
                     tooltip = "School Programs",
                     selected = activeTab == AcademicTab.PROGRAMS,
                     onClick = { activeTab = AcademicTab.PROGRAMS },

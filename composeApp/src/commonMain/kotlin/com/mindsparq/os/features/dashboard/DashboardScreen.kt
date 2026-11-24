@@ -16,8 +16,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.EventNote
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
-import androidx.compose.material.icons.outlined.EventNote
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.TaskAlt
@@ -130,7 +130,7 @@ fun DashboardScreen() {
                     value = "${metrics.activeSchools} / ${metrics.totalSchools}",
                 )
                 KpiCard(
-                    icon = Icons.Outlined.EventNote,
+                    icon = Icons.AutoMirrored.Outlined.EventNote,
                     label = "Active Programs",
                     value = "${metrics.activePrograms}",
                 )

@@ -18,8 +18,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Class
 import androidx.compose.material.icons.outlined.Contacts
 import androidx.compose.material.icons.outlined.Info
@@ -294,7 +294,7 @@ private fun SchoolDetailPane(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (onBack != null) {
                     MindSparqIconButton(
-                        icon = Icons.Outlined.ArrowBack,
+                        icon = Icons.AutoMirrored.Outlined.ArrowBack,
                         tooltip = "Back to Schools",
                         outlined = true,
                         onClick = onBack,

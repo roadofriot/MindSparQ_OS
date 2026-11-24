@@ -17,8 +17,12 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Logout
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Assessment
@@ -33,7 +37,7 @@ import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Translate
-import androidx.compose.material.icons.outlined.MenuBook
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -41,6 +45,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -78,7 +83,10 @@ import com.mindsparq.os.features.inventory.InventoryScreen
 import com.mindsparq.os.features.reports.ReportsScreen
 import com.mindsparq.os.features.schools.SchoolsScreen
 import com.mindsparq.os.features.settings.SettingsScreen
+import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 
 @Composable
 fun MindSparqApp(isDesktop: Boolean) {
@@ -359,6 +367,9 @@ private fun MainAdaptiveShell(
     var currentDest by remember(destinations) {
         mutableStateOf(destinations.firstOrNull() ?: AppDestination.DASHBOARD)
     }
+    var showCommandSearch by remember { mutableStateOf(false) }
+    var showQuickCreate by remember { mutableStateOf(false) }
+    var showNotifications by remember { mutableStateOf(false) }
 
     val topBar: @Composable () -> Unit = {
         Row(
@@ -400,14 +411,14 @@ private fun MainAdaptiveShell(
                     icon = Icons.Outlined.Search,
                     tooltip = strings.searchHint,
                     shortcutHint = "⌘K",
-                    onClick = {},
+                    onClick = { showCommandSearch = true },
                     outlined = true,
                 )
                 MindSparqIconButton(
                     icon = Icons.Outlined.Add,
                     tooltip = "Quick Create",
                     shortcutHint = "⌘N",
-                    onClick = {},
+                    onClick = { showQuickCreate = true },
                     outlined = true,
                 )
                 MindSparqIconButton(
@@ -430,7 +441,7 @@ private fun MainAdaptiveShell(
                 MindSparqIconButton(
                     icon = Icons.Outlined.Notifications,
                     tooltip = strings.notifications,
-                    onClick = {},
+                    onClick = { showNotifications = true },
                 )
                 MindSparqIconButton(
                     icon = Icons.AutoMirrored.Outlined.Logout,
@@ -531,6 +542,194 @@ private fun MainAdaptiveShell(
             }
         }
     }
+
+    if (showCommandSearch) {
+        CommandSearchDialog(
+            destinations = destinations,
+            strings = strings,
+            onSelect = { dest ->
+                currentDest = dest
+                showCommandSearch = false
+            },
+            onDismiss = { showCommandSearch = false },
+        )
+    }
+
+    if (showQuickCreate) {
+        QuickCreateDialog(
+            destinations = destinations,
+            strings = strings,
+            onNavigate = { dest ->
+                currentDest = dest
+                showQuickCreate = false
+            },
+            onDismiss = { showQuickCreate = false },
+        )
+    }
+
+    if (showNotifications) {
+        NotificationsDialog(
+            userId = session.userId,
+            onDismiss = { showNotifications = false },
+        )
+    }
+}
+
+@Serializable
+private data class NotificationRow(
+    val id: String,
+    val title: String,
+    val body: String,
+    val category: String? = null,
+)
+
+@Composable
+private fun CommandSearchDialog(
+    destinations: List<AppDestination>,
+    strings: AppStrings,
+    onSelect: (AppDestination) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = LocalMindSparqColors.current
+    var query by remember { mutableStateOf("") }
+    val filtered = remember(query, destinations) {
+        val q = query.trim().lowercase()
+        if (q.isEmpty()) destinations
+        else destinations.filter { destinationLabel(it, strings).lowercase().contains(q) }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(strings.searchHint) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = { Text("Jump to module...") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.height(220.dp)) {
+                    items(filtered) { dest ->
+                        Surface(
+                            color = colors.bgElevated,
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth().clickable { onSelect(dest) },
+                        ) {
+                            Text(
+                                text = destinationLabel(dest, strings),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.textPrimary,
+                                modifier = Modifier.padding(12.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Close") } },
+    )
+}
+
+@Composable
+private fun QuickCreateDialog(
+    destinations: List<AppDestination>,
+    strings: AppStrings,
+    onNavigate: (AppDestination) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = LocalMindSparqColors.current
+    val createTargets = remember(destinations) {
+        destinations.filter {
+            it in setOf(
+                AppDestination.SCHOOLS,
+                AppDestination.ACADEMIC,
+                AppDestination.FINANCE,
+                AppDestination.INVENTORY,
+                AppDestination.FIELD_OPS,
+            )
+        }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Quick Create") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                createTargets.forEach { dest ->
+                    Surface(
+                        color = colors.bgElevated,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth().clickable { onNavigate(dest) },
+                    ) {
+                        Text(
+                            text = "Open ${destinationLabel(dest, strings)}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.textPrimary,
+                            modifier = Modifier.padding(12.dp),
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Close") } },
+    )
+}
+
+@Composable
+private fun NotificationsDialog(
+    userId: String,
+    onDismiss: () -> Unit,
+) {
+    val colors = LocalMindSparqColors.current
+    var state by remember { mutableStateOf<UiState<List<NotificationRow>>>(UiState.Loading) }
+
+    LaunchedEffect(userId) {
+        runCatching {
+            val client = SupabaseConfig.client ?: error("Supabase is not configured.")
+            client.from("notifications")
+                .select {
+                    filter { eq("user_id", userId) }
+                    order("created_at", Order.DESCENDING)
+                }
+                .decodeList<NotificationRow>()
+        }
+            .onSuccess { list ->
+                state = if (list.isEmpty()) {
+                    UiState.Empty("All Caught Up", "No unread notifications.")
+                } else UiState.Success(list)
+            }
+            .onFailure { state = UiState.Error(it.message ?: "Failed to load notifications") }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Notifications") },
+        text = {
+            Box(modifier = Modifier.fillMaxWidth().height(240.dp)) {
+                StateContainer(state = state) { items ->
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(items, key = { it.id }) { n ->
+                            Surface(
+                                color = colors.bgElevated,
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp)) {
+                                    Text(n.title, style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
+                                    Text(n.body, style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Close") } },
+    )
 }
 
 @Composable
@@ -568,7 +767,7 @@ private fun DestinationWorkspace(
 private fun destinationIcon(dest: AppDestination): ImageVector = when (dest) {
     AppDestination.DASHBOARD -> Icons.Outlined.Dashboard
     AppDestination.SCHOOLS -> Icons.Outlined.School
-    AppDestination.ACADEMIC -> Icons.Outlined.MenuBook
+    AppDestination.ACADEMIC -> Icons.AutoMirrored.Outlined.MenuBook
     AppDestination.FINANCE -> Icons.Outlined.AccountBalanceWallet
     AppDestination.INVENTORY -> Icons.Outlined.Inventory2
     AppDestination.FIELD_OPS -> Icons.Outlined.LocationOn

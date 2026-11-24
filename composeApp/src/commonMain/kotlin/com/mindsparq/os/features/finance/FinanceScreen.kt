@@ -14,10 +14,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.AccountBalance
 import androidx.compose.material.icons.outlined.AddCard
 import androidx.compose.material.icons.outlined.Payments
-import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.RequestQuote
 import androidx.compose.material.icons.outlined.SwapHoriz
@@ -122,7 +122,7 @@ fun FinanceScreen() {
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 MindSparqIconButton(
-                    icon = Icons.Outlined.ReceiptLong,
+                    icon = Icons.AutoMirrored.Outlined.ReceiptLong,
                     tooltip = "Receivables",
                     selected = activeTab == FinanceTab.RECEIVABLES,
                     onClick = { activeTab = FinanceTab.RECEIVABLES },
